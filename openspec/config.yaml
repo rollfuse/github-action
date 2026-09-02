@@ -1,0 +1,40 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+context: |
+  Tech stack: JavaScript (Node.js, ESM), @actions/core, @rollfuse/sdk-js,
+  @vercel/ncc for bundling. Node's built-in test runner (node:test), no
+  Jest/Mocha/etc.
+
+  Domain: the official rollfuse GitHub Action — a thin wrapper around
+  @rollfuse/sdk-js (github.com/rollfuse/js-sdk) exposing a single
+  capability, "gate a workflow step on a flag," as `uses:
+  rollfuse/github-action@v1`. This is a JavaScript Action: action.yml's
+  `main` points directly at the committed dist/index.js (a single
+  ncc-bundled file), not src/main.js — consumers never run a build step,
+  so dist/ must always be kept in sync with src/ (enforced by CI's
+  `npm run check-dist`, which rebuilds and diffs).
+
+  This action deliberately never passes a `fallback` to
+  client.evaluate — see src/main.js's own doc comment: for a kill-switch
+  gate, an unreachable API or an unknown flag key must fail the gate
+  closed (block), not silently pass. The same choice
+  rollfuse/openfeature-provider makes, for the analogous reason on that
+  side.
+
+# Per-artifact rules (optional)
+rules:
+  tasks:
+    - Any task touching src/main.js must include `npm run build` (or
+      `npm run check-dist`) as a verification step, and must not consider
+      the task done if dist/index.js was left stale relative to src/.
+    - Any task changing observable behavior (a new input, output, or
+      error path) must add or update a case in __tests__/main.test.js,
+      not only rely on .github/workflows/self-test.yml's two fixed
+      scenarios.
+  design:
+    - A change to how errors are handled or fallback behavior works must
+      explicitly state whether it preserves "fails closed" — this is a
+      security-relevant property for a kill-switch action, not just a
+      style choice.

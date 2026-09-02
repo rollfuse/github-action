@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: install, test, dist up to date
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+
+      # dist/index.js is the shipped artifact — action.yml's `main` points
+      # at it directly, and consumers referencing `uses:
+      # rollfuse/github-action@v1` never run a build step of their own.
+      # If it's stale relative to src/, ship the wrong code silently.
+      - name: verify dist/ is up to date with src/
+        run: npm run check-dist
+
+      - name: npm audit
+        run: npm audit --audit-level=high

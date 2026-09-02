@@ -1,0 +1,44 @@
+name: "rollfuse Flag Gate"
+description: "Gate a workflow step on a rollfuse feature flag — a kill switch for deploys, or any other pipeline step."
+author: "rollfuse"
+branding:
+  icon: "toggle-right"
+  color: "purple"
+
+inputs:
+  flag:
+    description: "The flag key to evaluate."
+    required: true
+  want-variation:
+    description: "The variation key that means \"pass\". The action fails (non-zero exit) if the resolved variation doesn't match."
+    required: false
+    default: "on"
+  subject:
+    description: "The subject key to evaluate the flag for."
+    required: false
+    default: "ci"
+  attributes:
+    description: "JSON object of evaluation attributes (e.g. '{\"environment\":\"production\"}')."
+    required: false
+    default: "{}"
+  base-url:
+    description: "The rollfuse API base URL."
+    required: false
+    default: "https://api.rollfuse.com"
+  credential:
+    description: "A rollfuse Service Credential, scoped to config:read. Never hardcode this — pass a repository/environment secret."
+    required: true
+
+outputs:
+  variation:
+    description: "The resolved variation key."
+  reason:
+    description: "The evaluation reason (rule_match, default_disabled, default_no_rule_match, default_fallback)."
+  value:
+    description: "The resolved variation's value, JSON-encoded."
+  passed:
+    description: "\"true\" if the resolved variation matched want-variation, \"false\" otherwise."
+
+runs:
+  using: "node24"
+  main: "dist/index.js"

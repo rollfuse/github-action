@@ -1,0 +1,21 @@
+{
+  "name": "rollfuse-github-action",
+  "private": true,
+  "type": "module",
+  "description": "The official rollfuse GitHub Action: gate a workflow step on a feature flag.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "ncc build src/main.js -o dist --minify --license licenses.txt",
+    "test": "node --test",
+    "check-dist": "npm run build && git diff --exit-code dist/"
+  },
+  "dependencies": {
+    "@actions/core": "3.0.1",
+    "@rollfuse/sdk-js": "0.1.1"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "0.45.0"
+  }
+}

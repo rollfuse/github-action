@@ -1,0 +1,84 @@
+# Exercises the packaged action (dist/index.js) exactly the way a
+# consumer's workflow would: `uses: ./` against a real subprocess, not a
+# unit test calling run() in-process. Runs both outcomes (gate passes,
+# gate blocks) against a self-contained mock rollfuse API, so this repo's
+# own CI proves the shipped artifact actually works, not just the source.
+name: self-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: self-test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate-passes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: start mock rollfuse API
+        run: |
+          node scripts/mock-rollfuse-api.mjs &
+          for i in $(seq 1 15); do curl -fsS http://localhost:8090/healthz && exit 0; sleep 1; done
+          exit 1
+
+      - name: rollfuse flag gate (expect pass)
+        id: gate
+        uses: ./
+        with:
+          flag: deploys-enabled
+          want-variation: "on"
+          base-url: http://localhost:8090
+          credential: demo-credential
+
+      - name: assert outputs
+        run: |
+          test "${{ steps.gate.outputs.variation }}" = "on"
+          test "${{ steps.gate.outputs.passed }}" = "true"
+          echo "confirmed: variation=${{ steps.gate.outputs.variation }} passed=${{ steps.gate.outputs.passed }}"
+
+      # This step only runs because the gate above passed — the whole
+      # point of the action. Delete this comment and the step in your own
+      # workflow; it exists here purely to prove the pattern in CI.
+      - name: deploy (simulated)
+        run: echo "deploying..."
+
+  gate-blocks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: start mock rollfuse API
+        run: |
+          node scripts/mock-rollfuse-api.mjs &
+          for i in $(seq 1 15); do curl -fsS http://localhost:8090/healthz && exit 0; sleep 1; done
+          exit 1
+
+      - name: rollfuse flag gate (expect block — continue-on-error so this job can assert the failure)
+        id: gate
+        continue-on-error: true
+        uses: ./
+        with:
+          flag: deploys-enabled
+          want-variation: "off"
+          base-url: http://localhost:8090
+          credential: demo-credential
+
+      - name: assert the gate step actually failed
+        run: |
+          test "${{ steps.gate.outcome }}" = "failure"
+          test "${{ steps.gate.outputs.passed }}" = "false"
+          echo "confirmed: gate step outcome=${{ steps.gate.outcome }} passed=${{ steps.gate.outputs.passed }}"
+
+      - name: deploy (must never run)
+        if: steps.gate.outcome == 'success'
+        run: |
+          echo "this step must never run when the gate blocks" >&2
+          exit 1
