@@ -4,7 +4,7 @@
   "type": "module",
   "description": "The official rollfuse GitHub Action: gate a workflow step on a feature flag.",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "build": "ncc build src/main.js -o dist --minify --license licenses.txt",
