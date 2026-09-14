@@ -28,6 +28,10 @@ inputs:
   credential:
     description: "A rollfuse Service Credential, scoped to config:read. Never hardcode this — pass a repository/environment secret."
     required: true
+  timeout-ms:
+    description: "Milliseconds to wait for the platform to respond before failing the gate closed, independently of @rollfuse/sdk-js's own initialization bound — a consumer pinned to an older sdk-js version would otherwise hang until the platform's own request timeout (minutes, not this action's default of 15s)."
+    required: false
+    default: "15000"
 
 outputs:
   variation:
