@@ -213,3 +213,77 @@ test("invalid attributes JSON fails clearly", async () => {
     server.close();
   }
 });
+
+test("`timeout-ms` input must be a positive number", async () => {
+  const { failed } = await runAction({
+    flag: "deploys-enabled",
+    "base-url": "http://127.0.0.1:1",
+    credential: "test-credential",
+    "timeout-ms": "not-a-number",
+  });
+
+  assert.equal(failed, true);
+});
+
+/**
+ * Accepts the TCP connection but never writes a response — a genuine
+ * hang, distinct from connection-refused (which fails fast on its own).
+ * This is exactly what an unreachable-but-listening platform, or a
+ * misbehaving proxy, produces.
+ */
+function startHangingServer() {
+  return new Promise((resolve) => {
+    const server = createServer(() => {
+      // Deliberately never calls res.end() or res.writeHead(): the
+      // connection just sits open.
+    });
+
+    server.listen(0, "127.0.0.1", () => resolve(server));
+  });
+}
+
+test("task 2.5: fails promptly (bounded by timeout-ms), not by hanging until the platform's own timeout, against an unreachable-but-listening platform", async () => {
+  const server = await startHangingServer();
+  const { port } = server.address();
+
+  try {
+    const startedAt = Date.now();
+    const { failed } = await runAction({
+      flag: "deploys-enabled",
+      "base-url": `http://127.0.0.1:${port}`,
+      credential: "test-credential",
+      // Far shorter than @rollfuse/sdk-js's own ~15s default
+      // initialization bound, proving this action's own independent
+      // timeout is what fired, not the library's.
+      "timeout-ms": "300",
+    });
+    const elapsedMs = Date.now() - startedAt;
+
+    assert.equal(failed, true);
+    // Generous upper bound for CI scheduling jitter; still an order of
+    // magnitude below the library's own ~15s default and far below what
+    // running to the platform's own request timeout would take.
+    assert.ok(elapsedMs < 5_000, `expected the gate to fail well under 5s, took ${elapsedMs}ms`);
+  } finally {
+    server.close();
+  }
+});
+
+test("task 2.5: the gate still passes within timeout-ms against a responsive platform", async () => {
+  const server = await startMockApi();
+  const { port } = server.address();
+
+  try {
+    const { outputs, failed } = await runAction({
+      flag: "deploys-enabled",
+      "base-url": `http://127.0.0.1:${port}`,
+      credential: "test-credential",
+      "timeout-ms": "2000",
+    });
+
+    assert.equal(failed, false);
+    assert.equal(outputs.passed, "true");
+  } finally {
+    server.close();
+  }
+});
